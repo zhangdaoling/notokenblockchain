@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package pb;
+
+import "signature.proto";
+
+message Tx {
+    UnSignTx txData = 1;
+    repeated pb.Signature publishSigns = 2;
+}
+
+message UnSignTx {
+    bytes data = 1;
+    bytes reserved = 14;
+    repeated string signers = 2;
+}
