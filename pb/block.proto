@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+import "signature.proto";
+import "message.proto";
+package pb;
+
+message Block {
+    BlockHead head = 1;
+    pb.Signature sign = 2;
+    repeated pb.Message messages = 3;
+    repeated bytes message_hashes = 4;
+}
+
+message BlockHead {
+    int64 version = 1;
+    int64 number = 2;
+    int64 chain_id =3;
+    int64 time = 4;
+    bytes parent_hash = 5;
+    bytes message_merkle_hash = 6;
+    string blocker = 7;
+}

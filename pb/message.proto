@@ -4,13 +4,14 @@ package pb;
 
 import "signature.proto";
 
-message Tx {
-    UnSignTx txData = 1;
-    repeated pb.Signature publishSigns = 2;
+message Message {
+    pb.Signature signature = 1;
+    UnSignMessage unsign_message = 2;
 }
 
-message UnSignTx {
-    bytes data = 1;
-    bytes reserved = 14;
-    repeated string signers = 2;
+message UnSignMessage {
+    int64 chain_id = 1;
+    int64 nonce = 2;
+    int64 time = 3;
+    string sender = 4;
 }
