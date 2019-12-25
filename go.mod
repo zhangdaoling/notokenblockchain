@@ -9,6 +9,7 @@ require (
 	github.com/libp2p/go-libp2p v0.4.2 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.2.1 // indirect
 	github.com/libp2p/go-libp2p-net v0.1.0 // indirect
+	github.com/syndtr/goleveldb v1.0.0
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550

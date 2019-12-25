@@ -56,4 +56,3 @@ func getOrCreateKey(path string) (crypto.PrivKey, error) {
 	}
 	return privKey, nil
 }
-

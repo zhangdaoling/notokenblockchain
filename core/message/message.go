@@ -45,7 +45,7 @@ func (m *Message) Decode(b []byte) error {
 	return nil
 }
 
-func (m *Message) Hash() ([]byte, error){
+func (m *Message) Hash() ([]byte, error) {
 	return m.CalculateBaseHash()
 }
 
@@ -72,7 +72,7 @@ func (m *Message) CalculateBaseHash() (buf []byte, err error) {
 			return nil, nil
 		}
 		buf, err = common.Sha3(tmp)
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -86,7 +86,7 @@ func (m *Message) CalculateFullHash() (buf []byte, err error) {
 			return nil, err
 		}
 		buf, err = common.Sha3(tmp)
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 	}

@@ -61,7 +61,7 @@ func (b *Block) CalculateBaseHash() (buf []byte, err error) {
 			return nil, nil
 		}
 		buf, err = common.Sha3(tmp)
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -75,7 +75,7 @@ func (b *Block) CalculateFullHash() (buf []byte, err error) {
 			return nil, err
 		}
 		buf, err = common.Sha3(tmp)
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 	}

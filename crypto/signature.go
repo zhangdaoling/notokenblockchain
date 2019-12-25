@@ -1,7 +1,6 @@
 package crypto
 
-import (
-)
+import ()
 
 // Signature is the signature of some message
 type Signature struct {

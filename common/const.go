@@ -8,5 +8,5 @@ const (
 
 var (
 	MessageMaxExpiration = int64(90 * time.Second)
-	ChainID       = int32(0)
+	ChainID              = int32(0)
 )

@@ -1,19 +1,19 @@
 package crypto
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 
 	"github.com/zhangdaoling/simplechain/crypto/curver"
 )
 
 var (
 	ErrVerifySignaturePanic = errors.New("verify signature panic")
-	ErrNotSupportAlgorithm = errors.New("not support algorithm")
+	ErrNotSupportAlgorithm  = errors.New("not support algorithm")
 )
 
 type AlgorithmI interface {
-	GeneratePrivateKey() (error,[]byte)
+	GeneratePrivateKey() (error, []byte)
 	CheckPrivateKey(privateKey []byte) error
 	GeneratePublicKey(privateKey []byte) (error, []byte)
 	Sign(message []byte, privateKey []byte) (error, []byte)
@@ -57,7 +57,7 @@ func (a Algorithm) String() string {
 	}
 }
 
-func (a Algorithm) GeneratePrivateKey() (error,[]byte) {
+func (a Algorithm) GeneratePrivateKey() (error, []byte) {
 	err, i := a.getBackend()
 	if err != nil {
 		return err, nil
@@ -90,7 +90,7 @@ func (a Algorithm) Sign(message []byte, privateKey []byte) (error, []byte) {
 	return i.Sign(message, privateKey)
 }
 
-func (a Algorithm) Verify(message []byte, publicKey []byte, sig []byte) (ret bool){
+func (a Algorithm) Verify(message []byte, publicKey []byte, sig []byte) (ret bool) {
 	err, i := a.getBackend()
 	if err != nil {
 		return false
@@ -104,6 +104,3 @@ func (a Algorithm) Verify(message []byte, publicKey []byte, sig []byte) (ret boo
 	}()
 	return i.Verify(message, publicKey, sig)
 }
-
-
-

@@ -7,7 +7,7 @@ import (
 	"github.com/zhangdaoling/simplechain/pb"
 )
 
-func Build(m *pb.MerkleTree,data [][]byte) {
+func Build(m *pb.MerkleTree, data [][]byte) {
 	if len(data) == 0 {
 		m.HashList = make([][]byte, 1)
 		m.HashList[0] = nil
