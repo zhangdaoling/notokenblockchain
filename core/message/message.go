@@ -50,7 +50,7 @@ func (m *Message) Hash() ([]byte, error){
 }
 
 func (m *Message) BaseByte() ([]byte, error) {
-	buf, err := proto.Marshal(m.PbMessage.Unsignmessage)
+	buf, err := proto.Marshal(m.PbMessage.UnsignMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -102,10 +102,10 @@ func (m *Message) Verify() error {
 }
 
 func (m *Message) IsExpired(ct int64) bool {
-	if m.PbMessage.Unsignmessage.Time <= ct {
+	if m.PbMessage.UnsignMessage.Time <= ct {
 		return true
 	}
-	if ct-m.PbMessage.Unsignmessage.Time > common.MessageMaxExpiration {
+	if ct-m.PbMessage.UnsignMessage.Time > common.MessageMaxExpiration {
 		return true
 	}
 	return false

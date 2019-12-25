@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package pb;
+
+message MerkleTree {
+    repeated bytes hash_list = 1;
+    int32  leaf_num = 3;
+}

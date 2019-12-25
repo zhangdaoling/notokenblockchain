@@ -2,6 +2,8 @@ package block
 
 import (
 	"github.com/zhangdaoling/simplechain/common"
+	"github.com/zhangdaoling/simplechain/core/merkletree"
+	"github.com/zhangdaoling/simplechain/core/message"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/zhangdaoling/simplechain/pb"
@@ -80,14 +82,21 @@ func (b *Block) CalculateFullHash() (buf []byte, err error) {
 	return
 }
 
-func (b *Block) CalculateTxMerkleHash() []byte {
-	m := merkletree.MerkleTree{}
-	hashes := make([][]byte, 0, len(b.Txs))
-	for _, tx := range b.Txs {
-		hashes = append(hashes, tx.Hash())
+func (b *Block) CalculateTxMerkleHash() ([]byte, error) {
+	tree := pb.MerkleTree{}
+	hashes := make([][]byte, 0, len(b.PbBLock.Messages))
+	for _, msg := range b.PbBLock.Messages {
+		m := message.Message{
+			PbMessage: msg,
+		}
+		hash, err := m.Hash()
+		if err != nil {
+			return nil, err
+		}
+		hashes = append(hashes, hash)
 	}
-	m.Build(hashes)
-	return m.RootHash()
+	merkletree.Build(&tree, hashes)
+	return merkletree.RootHash(&tree), nil
 }
 
 func (b *Block) Sign() {

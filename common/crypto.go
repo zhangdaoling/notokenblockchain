@@ -23,6 +23,14 @@ func Sha3(raw []byte) (b []byte, err error) {
 	return
 }
 
+func NewSha3(raw []byte) ([]byte) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Errorf("sha3 panic. err=%v", err)
+		}
+	}()
+	return sha3.Sum256(raw)[:]
+}
 // Ripemd160 ...
 func Ripemd160(raw []byte) []byte {
 	h := ripemd160.New()
