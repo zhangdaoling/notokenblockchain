@@ -16,13 +16,15 @@ type StorageBackend interface {
 	Put(key []byte, value []byte) error
 	Has(key []byte) (bool, error)
 	Delete(key []byte) error
-	Keys(prefix []byte) ([][]byte, error)
-	//BeginBatch() error
-	//CommitBatch() error
-	Size() (int64, error)
+	Begin() error
+	Commit() error
+	RollBack() error
 	Close() error
+	//Size() (int64, error)
 	//NewIteratorByPrefix(prefix []byte) interface{}
 }
+
+var _  StorageBackend = &leveldb.DB{}
 
 type Storage struct {
 	StorageBackend

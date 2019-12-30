@@ -1,8 +1,8 @@
 package leveldb
 
 import (
+	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type DB struct {
@@ -50,25 +50,7 @@ func (d *DB) Delete(key []byte) error {
 	return nil
 }
 
-func (d *DB) Keys(prefix []byte) ([][]byte, error) {
-	iter := d.db.NewIterator(util.BytesPrefix(prefix), nil)
-	keys := make([][]byte, 0)
-
-	for iter.Next() {
-		key := make([]byte, len(iter.Key()))
-		copy(key, iter.Key())
-		keys = append(keys, key)
-	}
-	iter.Release()
-	err := iter.Error()
-	if err != nil {
-		return nil, err
-	}
-	return keys, nil
-}
-
-/*
-func (d *DB) BeginBatch() error {
+func (d *DB) Begin() error {
 	if d.batch != nil {
 		return fmt.Errorf("not support nested batch write")
 	}
@@ -76,7 +58,7 @@ func (d *DB) BeginBatch() error {
 	return nil
 }
 
-func (d *DB) CommitBatch() error {
+func (d *DB) Commit() error {
 	if d.batch == nil {
 		return fmt.Errorf("no batch write to commit")
 	}
@@ -87,8 +69,17 @@ func (d *DB) CommitBatch() error {
 	d.batch = nil
 	return nil
 }
-*/
 
+func (d *DB) RollBack() error {
+	d.batch = nil
+	return nil
+}
+
+func (d *DB) Close() error {
+	return d.db.Close()
+}
+
+/*
 func (d *DB) Size() (int64, error) {
 	stats := &leveldb.DBStats{}
 	if err := d.db.Stats(stats); err != nil {
@@ -101,11 +92,6 @@ func (d *DB) Size() (int64, error) {
 	return total, nil
 }
 
-func (d *DB) Close() error {
-	return d.db.Close()
-}
-
-/*
 func (d *DB) NewIteratorByPrefix(prefix []byte) interface{} {
 	iter := d.db.NewIterator(util.BytesPrefix(prefix), nil)
 	return &Iter{
