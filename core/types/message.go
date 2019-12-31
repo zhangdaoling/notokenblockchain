@@ -1,4 +1,4 @@
-package message
+package types
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ func ToMessage(m *pb.Message) *Message{
 	}
 }
 
-func ToPb(m *Message) *pb.Message{
+func ToPbMessage(m *Message) *pb.Message{
 	return m.PBMessage
 }
 

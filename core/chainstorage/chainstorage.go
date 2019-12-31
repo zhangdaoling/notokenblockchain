@@ -6,8 +6,7 @@ import (
 	"sync"
 
 	"github.com/zhangdaoling/simplechain/common"
-	"github.com/zhangdaoling/simplechain/core/block"
-	"github.com/zhangdaoling/simplechain/core/message"
+	"github.com/zhangdaoling/simplechain/core/types"
 	"github.com/zhangdaoling/simplechain/db/kv"
 	"github.com/zhangdaoling/simplechain/pb"
 )
@@ -24,13 +23,7 @@ type ChainStorage struct {
 	messageTotal int64
 }
 
-type ChainState struct {
-	lastHeight        int64
-	lastTime          int64
-	lastDifficulty    int64
-	blockDifficulty   int64
-	messageDifficulty int64
-}
+
 
 //todo, more state
 var (
@@ -101,7 +94,7 @@ func (c *ChainStorage) Close() {
 	c.db.Close()
 }
 
-func (c *ChainStorage) AddBlock(blk *block.Block) error {
+func (c *ChainStorage) AddBlock(blk *types.Block) error {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 
@@ -145,12 +138,12 @@ func (c *ChainStorage) HasBlock(hash []byte) (bool, error) {
 	return c.db.Has(append(blockHashPrefix, hash...))
 }
 
-func (c *ChainStorage) GetBlockByHash(hash []byte) (*block.Block, error) {
+func (c *ChainStorage) GetBlockByHash(hash []byte) (*types.Block, error) {
 	blockByte, err := c.getBlockByteByHash(hash)
 	if err != nil {
 		return nil, err
 	}
-	blk := &block.Block{}
+	blk := &types.Block{}
 	err = blk.DBDecode(blockByte)
 	if err != nil {
 		return nil, err
@@ -168,7 +161,7 @@ func (c *ChainStorage) GetBlockByHash(hash []byte) (*block.Block, error) {
 	return blk, nil
 }
 
-func (c *ChainStorage) GetBlockByNumber(number int64) (*block.Block, error) {
+func (c *ChainStorage) GetBlockByNumber(number int64) (*types.Block, error) {
 	hash, err := c.GetHashByHeight(number)
 	if err != nil {
 		return nil, err
@@ -189,7 +182,7 @@ func (c *ChainStorage) GetHeightByHash(hash []byte) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	blk := &block.Block{}
+	blk := &types.Block{}
 	err = blk.DBDecode(blockByte)
 	if err != nil {
 		return 0, err
@@ -201,8 +194,8 @@ func (c *ChainStorage) HasMessage(hash []byte) (bool, error) {
 	return c.db.Has(append(messageIndexPrefix, hash...))
 }
 
-func (c *ChainStorage) GetMessage(hash []byte) (*message.Message, error) {
-	msg := &message.Message{}
+func (c *ChainStorage) GetMessage(hash []byte) (*types.Message, error) {
+	msg := &types.Message{}
 	msgIndex, err := c.db.Get(append(messageIndexPrefix, hash...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to Get the msg: %v", err)
@@ -221,17 +214,12 @@ func (c *ChainStorage) GetMessage(hash []byte) (*message.Message, error) {
 	return msg, nil
 }
 
-func (c *ChainStorage) GetDifficulty(height int64) {
-	if height > c.length-1 {
-		height = c.length - 1
-	}
-	h := height / common.BlockDifficultyInterval
-	if h == 0 {
-
-	}
+//todo
+func (c *ChainStorage) GetDifficulty(height int64) *types.ChainState {
+	return &types.ChainState{}
 }
 
-func (c *ChainStorage) addBlock(blk *block.Block, db *kv.Storage) error {
+func (c *ChainStorage) addBlock(blk *types.Block, db *kv.Storage) error {
 	hash, err := blk.Hash()
 	if err != nil {
 		return err
@@ -247,7 +235,7 @@ func (c *ChainStorage) addBlock(blk *block.Block, db *kv.Storage) error {
 	c.db.Put(blockLengthPrefixes, common.Int64ToBytes(number+1))
 	c.db.Put(messageTotalPrefix, common.Int64ToBytes(messageTotal+int64(len(blk.PBBlock.Messages))))
 	for _, m := range blk.PBBlock.Messages {
-		msg := message.ToMessage(m)
+		msg := types.ToMessage(m)
 		msgHash, err := msg.Hash()
 		if err != nil {
 			return err

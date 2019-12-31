@@ -1,11 +1,9 @@
-package block
+package types
 
 import (
+	"github.com/golang/protobuf/proto"
 	"github.com/zhangdaoling/simplechain/common"
 	"github.com/zhangdaoling/simplechain/core/merkletree"
-	"github.com/zhangdaoling/simplechain/core/message"
-
-	"github.com/golang/protobuf/proto"
 	"github.com/zhangdaoling/simplechain/pb"
 )
 
@@ -19,7 +17,7 @@ func ToBLock(b *pb.Block) *Block {
 	}
 }
 
-func ToPb(b *Block) *pb.Block {
+func ToPbBlock(b *Block) *pb.Block {
 	return b.PBBlock
 }
 
@@ -83,7 +81,7 @@ func (b *Block) CalculateTxMerkleHash() ([]byte, error) {
 	tree := pb.MerkleTree{}
 	hashes := make([][]byte, 0, len(b.PBBlock.Messages))
 	for _, msg := range b.PBBlock.Messages {
-		m := message.Message{
+		m := Message{
 			PBMessage: msg,
 		}
 		hash, err := m.Hash()

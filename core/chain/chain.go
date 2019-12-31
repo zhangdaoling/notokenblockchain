@@ -1,9 +1,8 @@
 package chain
 
 import (
-	"github.com/zhangdaoling/simplechain/core/block"
+	"github.com/zhangdaoling/simplechain/core/types"
 	"github.com/zhangdaoling/simplechain/core/chainstorage"
-	"github.com/zhangdaoling/simplechain/core/message"
 )
 
 type ChainConfig struct {
@@ -30,23 +29,48 @@ type BlockTreeNode struct {
 	Block      *block.Block
 	Parent     *BlockTreeNode
 	Children   map[*BlockTreeNode]bool
-	ChainState *ChainState
+	ChainState *chainstorage.ChainState
 	isLinked   bool
 	isMain     bool
 }
 
-
+func(b *BlockTreeNode) buildChildren(blk *block.Block) *BlockTreeNode{
+	h1 := b.
+	return &BlockTreeNode{
+		Block: blk,
+		Parent: b,
+		Children:make(map[*BlockTreeNode]bool),
+		ChainState:b.ChainState,
+		isLinked:b.isLinked,
+		isMain:b.isMain,
+	}
+}
 
 func NewChainManager(db *chainstorage.ChainStorage, config *ChainConfig) (*Chain, error) {
 	c := Chain{
 		db:         db,
 		unlinkNode: make(map[string]*BlockTreeNode, 0),
 	}
+
 	var startHeight, i int64
 	length := db.Length()
 	if length > config.MinCacheBlockNumber {
 		startHeight = length - config.MinCacheBlockNumber
 	}
+	blk, err:= db.GetBlockByNumber(startHeight)
+	if err != nil {
+		return nil, err
+	}
+	state := db.GetDifficulty(startHeight)
+	parent := &BlockTreeNode{
+		Block:blk,
+		Parent:nil,
+		Children:make(map[*BlockTreeNode]bool),
+		ChainState: state,
+		isLinked: true,
+		isMain:true,
+	}
+	root := parent
 	for i = length - 1; i >= startHeight; i-- {
 		blk, err := db.GetBlockByNumber(i)
 		if err != nil {
@@ -54,12 +78,19 @@ func NewChainManager(db *chainstorage.ChainStorage, config *ChainConfig) (*Chain
 		}
 		blkNode := &BlockTreeNode{
 			Block: blk,
+			Parent: parent,
+			Children:make(map[*BlockTreeNode]bool),
+			ChainState:parent.ChainState,
+			isLinked:parent.isLinked,
+			isMain:parent.isMain,
 		}
-
+		parent = blkNode
 	}
 
 	return nil, nil
 }
+
+
 
 func (c *Chain) AddBlock(blk *block.Block) error {
 	return nil
