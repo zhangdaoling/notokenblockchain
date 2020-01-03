@@ -1,6 +1,6 @@
 package chain
 
-import "github.com/zhangdaoling/simplechain/core/types"
+import "github.com/zhangdaoling/notokenblockchain/core/types"
 
 type BlockTreeNode struct {
 	Block        *types.Block

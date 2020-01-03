@@ -5,7 +5,7 @@ import (
 	cryptorand "crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/zhangdaoling/simplechain/pb"
+	"github.com/zhangdaoling/notokenblockchain/pb"
 	"math/rand"
 	"net"
 	"regexp"

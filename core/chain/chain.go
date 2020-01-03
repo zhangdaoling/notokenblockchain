@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/zhangdaoling/simplechain/core/chainstorage"
-	"github.com/zhangdaoling/simplechain/core/types"
+	"github.com/zhangdaoling/notokenblockchain/core/chainstorage"
+	"github.com/zhangdaoling/notokenblockchain/core/types"
 )
 
 var (

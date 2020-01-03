@@ -3,8 +3,8 @@ package merkletree
 import (
 	"math"
 
-	"github.com/zhangdaoling/simplechain/common"
-	"github.com/zhangdaoling/simplechain/pb"
+	"github.com/zhangdaoling/notokenblockchain/common"
+	"github.com/zhangdaoling/notokenblockchain/pb"
 )
 
 func Build(m *pb.MerkleTree, data [][]byte) {

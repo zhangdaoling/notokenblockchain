@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zhangdaoling/simplechain/crypto/curver"
+	"github.com/zhangdaoling/notokenblockchain/crypto/curver"
 )
 
 var (

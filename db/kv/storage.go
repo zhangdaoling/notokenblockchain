@@ -1,7 +1,7 @@
 package kv
 
 import (
-	"github.com/zhangdaoling/simplechain/db/kv/leveldb"
+	"github.com/zhangdaoling/notokenblockchain/db/kv/leveldb"
 )
 
 type StorageType uint8

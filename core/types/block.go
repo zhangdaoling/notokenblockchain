@@ -3,13 +3,13 @@ package types
 import (
 	"bytes"
 	"errors"
-	"github.com/zhangdaoling/simplechain/crypto"
+	"github.com/zhangdaoling/notokenblockchain/crypto"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/zhangdaoling/simplechain/common"
-	"github.com/zhangdaoling/simplechain/core/consensus"
-	"github.com/zhangdaoling/simplechain/core/merkletree"
-	"github.com/zhangdaoling/simplechain/pb"
+	"github.com/zhangdaoling/notokenblockchain/common"
+	"github.com/zhangdaoling/notokenblockchain/core/consensus"
+	"github.com/zhangdaoling/notokenblockchain/core/merkletree"
+	"github.com/zhangdaoling/notokenblockchain/pb"
 )
 
 

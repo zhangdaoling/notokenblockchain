@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	protocolID  = "simplechain/0.0.1"
+	protocolID  = "notokenblockchain/0.0.1"
 	privKeyFile = "priv.key"
 )
 

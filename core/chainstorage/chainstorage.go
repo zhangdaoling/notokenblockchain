@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/zhangdaoling/simplechain/common"
-	"github.com/zhangdaoling/simplechain/core/types"
-	"github.com/zhangdaoling/simplechain/db/kv"
-	"github.com/zhangdaoling/simplechain/pb"
+	"github.com/zhangdaoling/notokenblockchain/common"
+	"github.com/zhangdaoling/notokenblockchain/core/types"
+	"github.com/zhangdaoling/notokenblockchain/db/kv"
+	"github.com/zhangdaoling/notokenblockchain/pb"
 )
 
 var (
