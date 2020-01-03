@@ -164,6 +164,9 @@ func (b *Block) verifyData() error {
 	if len(b.PBBlock.MessageHashes) != len(b.PBBlock.Messages) {
 		return ErrBlockMessagHashesNotFit
 	}
+
+	//todo calculate and check difficulty
+
 	//check merkle
 	merkleTree, err:= b.CalculateTxMerkleHash()
 	if err != nil {

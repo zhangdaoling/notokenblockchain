@@ -1,8 +1,11 @@
 package chainstorage
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/zhangdaoling/notokenblockchain/core/consensus"
+	"strconv"
 	"sync"
 
 	"github.com/zhangdaoling/notokenblockchain/common"
@@ -12,27 +15,21 @@ import (
 )
 
 var (
-	ErrDBBLockNotExist = errors.New("db not found block")
+	ErrDBBLockNotExist   = errors.New("db not found block")
 	ErrDBMessageNotExist = errors.New("db not found message")
 )
 
 type ChainStorage struct {
-	db           *kv.Storage
-	rw           sync.RWMutex
-	length       int64
-	weight       int64
-	messageTotal int64
+	db         *kv.Storage
+	rw         sync.RWMutex
+	chainState *types.ChainState
 }
 
-//todo, more state
 var (
-	blockLengthPrefixes     = []byte("bl")
-	messageTotalPrefix      = []byte("mt")
-	blockDifficultyPrefix   = []byte("bd")
-	messageDifficultyPrefix = []byte("md")
+	difficultyStatePrefix = []byte("ds")
+	chainStatePrefix      = []byte("cs")
 )
 
-//info
 var (
 	blockHeightPrefix  = []byte("bh")
 	blockHashPrefix    = []byte("b")
@@ -45,47 +42,36 @@ func NewBlockChain(path string) (*ChainStorage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fail to init blockchaindb, %v", err)
 	}
-	var length, weight, messageTotal int64
-	ok, err := levelDB.Has(blockLengthPrefixes)
+	state := consensus.GeneisChainState
+	ptr := &state
+	ok, err := levelDB.Has(chainStatePrefix)
 	if err != nil {
-		return nil, fmt.Errorf("fail to check has(lengthPrefixes), %v", err)
+		return nil, err
 	}
 	if ok {
-		lengthByte, err := levelDB.Get(blockLengthPrefixes)
-		if err != nil || len(lengthByte) == 0 {
-			return nil, errors.New("fail to get lengthPrefixes")
+		stateByte, err := levelDB.Get(chainStatePrefix)
+		if err != nil {
+			return nil, err
 		}
-		length = common.BytesToInt64(lengthByte)
-		weightByte, err := levelDB.Get(blockLengthPrefixes)
-		if err != nil || len(weightByte) == 0 {
-			return nil, errors.New("fail to get difficultyPrefix")
+		err = ptr.DBDecode(stateByte)
+		if err != nil {
+			return nil, err
 		}
-		weight = common.BytesToInt64(weightByte)
-		messageTotalByte, err := levelDB.Get(messageTotalPrefix)
-		if err != nil || len(messageTotalByte) == 0 {
-			return nil, errors.New("fail to get msg total")
-		}
-		messageTotal = common.BytesToInt64(messageTotalByte)
 	} else {
-		lengthByte := common.Int64ToBytes(0)
-		if err := levelDB.Put(blockLengthPrefixes, lengthByte); err != nil {
-			return nil, errors.New("fail to put lengthPrefixes")
-		}
-		weightByte := common.Int64ToBytes(weight)
-		if err := levelDB.Put(blockLengthPrefixes, weightByte); err != nil {
-			return nil, errors.New("fail to put difficultyPrefix")
-		}
-		messageTotalByte := common.Int64ToBytes(0)
-		if err := levelDB.Put(messageTotalPrefix, messageTotalByte); err != nil {
-			return nil, errors.New("fail to put msg total")
+		stateByte := ptr.DBBytes()
+		err := levelDB.Put(chainStatePrefix, stateByte)
+		if err != nil {
+			return nil, err
 		}
 	}
 	s := &ChainStorage{
-		db:           levelDB,
-		length:       length,
-		messageTotal: messageTotal,
+		db:         levelDB,
+		chainState: ptr,
 	}
-	s.CheckLength()
+	err = s.CheckLength()
+	if err != nil {
+		return nil, err
+	}
 	return s, err
 }
 
@@ -102,7 +88,7 @@ func (c *ChainStorage) AddBlock(blk *types.Block) error {
 		return errors.New("fail to begin batch")
 	}
 
-	err = c.addBlock(blk, c.db)
+	state, err := c.addBlock(blk, c.db)
 	if err != nil {
 		c.db.RollBack()
 		return err
@@ -112,25 +98,14 @@ func (c *ChainStorage) AddBlock(blk *types.Block) error {
 		c.db.RollBack()
 		return err
 	}
+	c.chainState = state
 	return nil
 }
 
-func (c *ChainStorage) Length() int64 {
+func (c *ChainStorage) State() types.ChainState {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
-	return c.length
-}
-
-func (c *ChainStorage) Weight() int64 {
-	c.rw.RLock()
-	defer c.rw.RUnlock()
-	return c.weight
-}
-
-func (c *ChainStorage) MessageTotal() int64 {
-	c.rw.RLock()
-	defer c.rw.RUnlock()
-	return c.messageTotal
+	return *c.chainState
 }
 
 func (c *ChainStorage) HasBlock(hash []byte) (bool, error) {
@@ -204,41 +179,71 @@ func (c *ChainStorage) GetMessage(hash []byte) (*types.Message, error) {
 }
 
 //todo
-func (c *ChainStorage) GetState(height int64) *types.ChainState {
-	return &types.ChainState{}
+func (c *ChainStorage) GetDifficulty(height int64) (*types.DiffiucltyState, error) {
+	c.rw.RLock()
+	defer c.rw.RUnlock()
+	return c.getDifficulty(height)
 }
 
-func (c *ChainStorage) addBlock(blk *types.Block, db *kv.Storage) error {
+func (c *ChainStorage) getDifficulty(height int64) (*types.DiffiucltyState, error) {
+	h := consensus.CalDifficultyHeigth(height)
+	state := &types.DiffiucltyState{}
+	stateByte, err := c.db.Get(append(chainStatePrefix, common.Int64ToBytes(h)...))
+	if err != nil {
+		return nil, err
+	}
+	err = state.DBDecode(stateByte)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+func (c *ChainStorage) addBlock(blk *types.Block, db *kv.Storage) (state *types.ChainState, err error) {
 	hash, err := blk.Hash()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	blockByte, err := blk.DBBytes()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	number := blk.PBBlock.Head.Height
-	messageTotal := c.MessageTotal()
 	c.db.Put(append(blockHeightPrefix, common.Int64ToBytes(number)...), hash)
 	c.db.Put(append(blockHashPrefix, hash...), blockByte)
-	c.db.Put(blockLengthPrefixes, common.Int64ToBytes(number+1))
-	c.db.Put(messageTotalPrefix, common.Int64ToBytes(messageTotal+int64(len(blk.PBBlock.Messages))))
 	for _, m := range blk.PBBlock.Messages {
 		msg := types.ToMessage(m)
 		msgHash, err := msg.Hash()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		msgBytes, err := msg.DBBytes()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		c.db.Put(append(messageHashPrefix, msgHash...), append(hash, msgHash...))
 		c.db.Put(append(messageIndexPrefix, append(hash, msgHash...)...), msgBytes)
 	}
-	c.setLength(number + 1)
-	c.setMessageTotal(messageTotal + int64(len(blk.PBBlock.Messages)))
-	return nil
+	if blk.PBBlock.Head.Height%consensus.Consensus.DifficultyInterval == 0 {
+		lastDifficultyState, err := c.getDifficulty(blk.PBBlock.Head.Height)
+		if err != nil{
+			return nil, err
+		}
+		currentDifficultyState
+
+
+	}
+	state = &types.ChainState{
+		Length:       c.chainState.Length + 1,
+		TotalWeight:  c.chainState.TotalMessage + blk.PBBlock.Head.Difficulty,
+		TotalMessage: c.chainState.TotalMessage + int64(len(blk.PBBlock.Messages)),
+	}
+	stateByte := state.DBBytes()
+	err = c.db.Put(chainStatePrefix, stateByte)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 func (c *ChainStorage) getBlockByteByHash(hash []byte) ([]byte, error) {
@@ -249,28 +254,18 @@ func (c *ChainStorage) getBlockByteByHash(hash []byte) ([]byte, error) {
 	return blockByte, nil
 }
 
-func (c *ChainStorage) setLength(i int64) {
-	c.length = i
-}
-
-func (c *ChainStorage) setWeight(i int64) {
-	c.weight = i
-}
-
-func (c *ChainStorage) setMessageTotal(i int64) {
-	c.messageTotal = i
-}
-
 // CheckLength is check length of block in database
-func (c *ChainStorage) CheckLength() {
-	for i := c.Length(); i > 0; i-- {
-		_, err := c.GetBlockByHeight(i - 1)
+func (c *ChainStorage) CheckLength() error {
+	c.rw.RLock()
+	defer c.rw.RUnlock()
+	for i := c.chainState.Length; i > 0; i-- {
+		n, err := c.GetBlockByHeight(i - 1)
 		if err != nil {
-			fmt.Println("fail to get the block")
-		} else {
-			c.db.Put(blockLengthPrefixes, common.Int64ToBytes(i))
-			c.setLength(i)
-			break
+			return err
+		}
+		if n == nil {
+			return fmt.Errorf("not found block: %d", i-1)
 		}
 	}
+	return nil
 }

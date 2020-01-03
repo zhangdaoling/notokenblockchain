@@ -2,6 +2,7 @@ syntax = "proto3";
 
 import "signature.proto";
 import "message.proto";
+
 package pb;
 
 message Block {
@@ -16,7 +17,8 @@ message BlockHead {
     int64 chain_id = 2;
     int64 height = 3;
     int64 time = 4;
-    bytes parent_hash = 5;
-    bytes message_merkle_hash = 6;
-    bytes public_key = 7;
+    int64 difficulty = 5;
+    bytes parent_hash = 6;
+    bytes message_merkle_hash = 7;
+    bytes public_key = 8;
 }
