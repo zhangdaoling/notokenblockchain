@@ -12,15 +12,13 @@ import (
 )
 
 // Sha3 ...
-func Sha3(raw []byte) (b []byte, err error) {
+func Sha3(raw []byte) []byte {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Errorf("sha3 panic. err=%v", err)
-			b = nil
 		}
 	}()
-	b = sha3.Sum256(raw)[:]
-	return
+	return sha3.Sum256(raw)[:]
 }
 
 func NewSha3(raw []byte) []byte {

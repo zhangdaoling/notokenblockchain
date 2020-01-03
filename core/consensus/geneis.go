@@ -1,13 +1,13 @@
-package geneis
+package consensus
 
 var Geneis = mainChainGeneis
 
 var mainChainGeneis = GeneisInfo{
-	BlockDifficuty:   100,
+	BlockDifficulty:   100,
 	MessageDifficuty: 10,
 }
 
 type GeneisInfo struct {
-	BlockDifficuty   int64
+	BlockDifficulty   int64
 	MessageDifficuty int64
 }

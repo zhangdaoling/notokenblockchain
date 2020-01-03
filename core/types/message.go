@@ -1,25 +1,34 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
+	"errors"
 
+	"github.com/zhangdaoling/simplechain/crypto"
 	"github.com/zhangdaoling/simplechain/common"
+	"github.com/zhangdaoling/simplechain/core/consensus"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/zhangdaoling/simplechain/pb"
 )
 
+var(
+ErrMessagePublicKeyWrong = errors.New("block public key not right")
+)
+
 type Message struct {
+	hash      []byte
 	PBMessage *pb.Message
 }
 
-func ToMessage(m *pb.Message) *Message{
+func ToMessage(m *pb.Message) *Message {
 	return &Message{
-		PBMessage:m,
+		PBMessage: m,
 	}
 }
 
-func ToPbMessage(m *Message) *pb.Message{
+func ToPbMessage(m *Message) *pb.Message {
 	return m.PBMessage
 }
 
@@ -61,23 +70,47 @@ func (m *Message) HashBytes() ([]byte, error) {
 
 func (m *Message) Hash() ([]byte, error) {
 	baseBytes, err := m.HashBytes()
-	if err != nil{
-		return nil, err
-	}
-	buf, err := common.Sha3(baseBytes)
 	if err != nil {
 		return nil, err
 	}
-	return buf, nil
+	return common.Sha3(baseBytes), nil
 }
 
-//to do
-func (m *Message) Sign() {
-	return
+func (m *Message) Sign(privateKey []byte) error {
+	alg := crypto.Ed25519
+	publicKey, err := alg.GeneratePublicKey(privateKey)
+	if err !=nil{
+		return err
+	}
+	if !bytes.Equal(m.PBMessage.UnsignMessage.PublicKey, publicKey){
+		return ErrMessagePublicKeyWrong
+
+	}
+
+	hash, err := m.Hash()
+	if err != nil {
+		return err
+	}
+	sig, err := alg.Sign(hash, privateKey)
+	if err != nil{
+		return err
+	}
+	m.PBMessage.Signature.Algorithm = int32(alg)
+	m.PBMessage.Signature.Sig = sig
+	m.PBMessage.UnsignMessage.PublicKey = publicKey
+	return nil
 }
 
-//to do
 func (m *Message) Verify() error {
+	baseBytes, err := m.HashBytes()
+	if err != nil {
+		return err
+	}
+	m.hash = common.Sha3(baseBytes)
+	alg :=crypto.Algorithm(m.PBMessage.Signature.Algorithm)
+	if !alg.Verify(m.hash, m.PBMessage.UnsignMessage.PublicKey, m.PBMessage.Signature.Sig){
+		return ErrBlockSignWrong
+	}
 	return nil
 }
 
@@ -85,7 +118,7 @@ func (m *Message) IsExpired(ct int64) bool {
 	if m.PBMessage.UnsignMessage.Time <= ct {
 		return true
 	}
-	if ct-m.PBMessage.UnsignMessage.Time > common.MessageMaxExpiration {
+	if ct-m.PBMessage.UnsignMessage.Time > consensus.Consensus.MessageExpirationTime {
 		return true
 	}
 	return false
@@ -97,9 +130,9 @@ func (m *Message) CheckSize() error {
 		return err
 	}
 
-	l := len(b)
-	if l > common.MessageSizeLimit {
-		return fmt.Errorf("msg size illegal, should <= %v, got %v", common.MessageSizeLimit, l)
+	l := int64(len(b))
+	if l > consensus.Consensus.MessageSizeLimit {
+		return fmt.Errorf("msg size illegal, should <= %v, got %v", consensus.Consensus.MessageSizeLimit, l)
 	}
 	return nil
 }

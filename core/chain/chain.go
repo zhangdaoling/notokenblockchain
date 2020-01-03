@@ -1,129 +1,325 @@
 package chain
 
 import (
-	"github.com/zhangdaoling/simplechain/core/types"
+	"bytes"
+	"errors"
+	"sync"
+
 	"github.com/zhangdaoling/simplechain/core/chainstorage"
+	"github.com/zhangdaoling/simplechain/core/types"
+)
+
+var (
+	ErrBLockNotExist   = errors.New("not found block")
+	ErrMessageNotExist = errors.New("not found message")
 )
 
 type ChainConfig struct {
 	MinCacheBlockNumber int64
+	MaxCacheBlockNumber int64
 }
 
 type Chain struct {
-	db *chainstorage.ChainStorage
+	config *ChainConfig
+	rw     sync.RWMutex
+	db     *chainstorage.ChainStorage
 	//blocks which unlink to the tree, key is the parent hash
-	unlinkNode map[string]*BlockTreeNode
-	//the header of the main tree. main tree include the main chain
+	parentToUnlinkNode map[string]*BlockTreeNode
+	//the root of the main tree. main tree include the main chain
 	root *BlockTreeNode
+	//the main chain leaf node
+	mainChainLeaf *BlockTreeNode
 	//no children block
-	leaf map[*BlockTreeNode]int64
-	//all block in memory
+	//leafDifficulty map[*BlockTreeNode]int64
+	//all block in memory, include unlinked
 	blockMaps map[string]*BlockTreeNode
-	//search cache
+	//cache main chain for search
 	hashToblock   map[string]*BlockTreeNode
 	heightToBlock map[int64]*BlockTreeNode
-	hashToMessage map[string]*message.Message
-}
-
-type BlockTreeNode struct {
-	Block      *block.Block
-	Parent     *BlockTreeNode
-	Children   map[*BlockTreeNode]bool
-	ChainState *chainstorage.ChainState
-	isLinked   bool
-	isMain     bool
-}
-
-func(b *BlockTreeNode) buildChildren(blk *block.Block) *BlockTreeNode{
-	h1 := b.
-	return &BlockTreeNode{
-		Block: blk,
-		Parent: b,
-		Children:make(map[*BlockTreeNode]bool),
-		ChainState:b.ChainState,
-		isLinked:b.isLinked,
-		isMain:b.isMain,
-	}
+	hashToMessage map[string]*types.Message
 }
 
 func NewChainManager(db *chainstorage.ChainStorage, config *ChainConfig) (*Chain, error) {
-	c := Chain{
-		db:         db,
-		unlinkNode: make(map[string]*BlockTreeNode, 0),
+	c := &Chain{
+		config:             config,
+		db:                 db,
+		parentToUnlinkNode: make(map[string]*BlockTreeNode),
+		root:               nil,
+		mainChainLeaf:      nil,
+		//leafDifficulty: make(map[*BlockTreeNode]int64),
+		blockMaps:     make(map[string]*BlockTreeNode),
+		hashToblock:   make(map[string]*BlockTreeNode),
+		heightToBlock: make(map[int64]*BlockTreeNode),
+		hashToMessage: make(map[string]*types.Message),
 	}
 
-	var startHeight, i int64
-	length := db.Length()
-	if length > config.MinCacheBlockNumber {
-		startHeight = length - config.MinCacheBlockNumber
+	blk, err := db.GetBlockByHeight(db.Length())
+	if blk == nil {
+		return nil, chainstorage.ErrDBBLockNotExist
 	}
-	blk, err:= db.GetBlockByNumber(startHeight)
 	if err != nil {
 		return nil, err
 	}
-	state := db.GetDifficulty(startHeight)
+	state := db.GetState(db.Length())
+	err = blk.Verify()
+	if err != nil {
+		return nil, err
+	}
+	hash, err := blk.Hash()
+	if err != nil {
+		return nil, err
+	}
 	parent := &BlockTreeNode{
-		Block:blk,
-		Parent:nil,
-		Children:make(map[*BlockTreeNode]bool),
+		Block:      blk,
+		hash:       hash,
+		Parent:     nil,
+		Children:   make(map[*BlockTreeNode]bool),
 		ChainState: state,
-		isLinked: true,
-		isMain:true,
+		isLinked:   true,
 	}
-	root := parent
-	for i = length - 1; i >= startHeight; i-- {
-		blk, err := db.GetBlockByNumber(i)
+	c.setRoot(parent)
+	c.setMainLeaf(parent)
+
+	for i := int64(0); i < config.MinCacheBlockNumber-1; i++ {
+		if c.rootHeight() == 0 {
+			break
+		}
+		err := c.cacheRootParent()
 		if err != nil {
-			return nil, nil
+			return nil, err
 		}
-		blkNode := &BlockTreeNode{
-			Block: blk,
-			Parent: parent,
-			Children:make(map[*BlockTreeNode]bool),
-			ChainState:parent.ChainState,
-			isLinked:parent.isLinked,
-			isMain:parent.isMain,
-		}
-		parent = blkNode
+	}
+	return c, nil
+}
+
+func (c *Chain) setRoot(node *BlockTreeNode) {
+	c.blockMaps[string(node.Hash())] = node
+	return
+}
+
+func (c *Chain) setMainLeaf(node *BlockTreeNode) {
+	c.mainChainLeaf = node
+}
+
+func (c *Chain) AddBlock(blk *types.Block) error {
+	hash, err := blk.Hash()
+	if err != nil {
+		return err
+	}
+	//the same blk, return
+	n, err := c.GetBlockByHash(hash)
+	if err != nil {
+		return err
+	}
+	if n != nil {
+		return nil
+	}
+	_, ok := c.blockMaps[string(hash)]
+	if ok {
+		return nil
 	}
 
-	return nil, nil
-}
+	err = blk.Verify()
+	if err != nil {
+		return err
+	}
+	parentHash := blk.PBBlock.Head.ParentHash
 
+	//cache more blk from db if parent is in db
+	exist, err := c.dbHasBlock(parentHash)
+	if err != nil {
+		return err
+	}
+	if exist {
+		parentBlk, err := c.db.GetBlockByHash(parentHash)
+		if err != nil {
+			return err
+		}
+		if parentBlk != nil {
+			if c.rootHeight()-parentBlk.PBBlock.Head.Height > c.config.MaxCacheBlockNumber {
+				//nothing to do
+				return nil
+			}
+			for {
+				if c.rootHeight() == 0 || bytes.Equal(c.root.Hash(), parentHash) {
+					break
+				}
+				err := c.cacheRootParent()
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
 
+	//add to parentUnlink
+	node := &BlockTreeNode{
+		Block:      blk,
+		hash:       hash,
+		Parent:     nil,
+		Children:   make(map[*BlockTreeNode]bool),
+		ChainState: nil,
+		isLinked:   false,
+	}
+	unlinkNode, ok := c.parentToUnlinkNode[string(hash)]
+	if ok {
+		unlinkNode = &BlockTreeNode{
+			Block:      blk,
+			hash:       hash,
+			Parent:     nil,
+			Children:   make(map[*BlockTreeNode]bool),
+			ChainState: nil,
+			isLinked:   false,
+		}
+	}
+	unlinkNode.Children[node] = true
+	c.blockMaps[string(hash)] = node
 
-func (c *Chain) AddBlock(blk *block.Block) error {
+	parentNode, ok := c.blockMaps[string(node.ParentHash())]
+	if !ok {
+		return nil
+	}
+	if parentNode.isLinked {
+
+	}
 	return nil
 }
 
-func (c *Chain) flush() error {
-	return nil
+func(c *Chain) link(node *BlockTreeNode){
+	if len(node.Children) == 0 {
+		return
+	}
+	for child, _ := range node.Children{
+		//todo verify chainstate
+		child.ChainState = node.ChainState
+		if {
+
+		}
+		child.isLinked = true
+		c.link(child)
+	}
+
+}
+
+func (c *Chain) memoryGetBlock(hash []byte) *BlockTreeNode {
+	return c.blockMaps[string(hash)]
+}
+
+func (c *Chain) memorySetBlock(node *BlockTreeNode) {
 }
 
 func (c *Chain) HasBlock(hash []byte) (bool, error) {
-	return false, nil
+	_, ok := c.blockMaps[string(hash)]
+	if ok {
+		return true, nil
+	}
+
+	return c.dbHasBlock(hash)
 }
 
-func (c *Chain) GetBlockByHash(hash []byte) (*block.Block, error) {
+func (c *Chain) GetBlockByHash(hash []byte) (*types.Block, error) {
 	return nil, nil
 }
 
-func (c *Chain) GetBlockByNumber(number int64) (*block.Block, error) {
+func (c *Chain) GetBlockByNumber(number int64) (*types.Block, error) {
 	return nil, nil
-}
-
-func (c *Chain) GetHashByHeight(number int64) ([]byte, error) {
-	return nil, nil
-}
-
-func (c *Chain) GetHeightByHash(hash []byte) (int64, error) {
-	return 0, nil
 }
 
 func (c *Chain) HasMessage(hash []byte) (bool, error) {
 	return false, nil
 }
 
-func (c *ChainManager) GetMessage(hash []byte) (*message.Message, error) {
+func (c *Chain) GetMessage(hash []byte) (*types.Message, error) {
 	return nil, nil
+}
+
+func (c *Chain) flush() error {
+	return nil
+}
+
+func (c *Chain) rootHeight() int64 {
+	return c.root.Height()
+}
+
+func (c *Chain) rootHash() []byte {
+	return c.root.Hash()
+}
+
+func (c *Chain) rootParentHash() []byte {
+	return c.root.ParentHash()
+}
+
+func (c *Chain) dbHasBlock(hash []byte) (bool, error) {
+	height := c.rootHeight()
+	blk, err := c.db.GetBlockByHash(hash)
+	if err != nil {
+		return false, err
+	}
+
+	if blk == nil {
+		return false, nil
+	}
+	if height <= blk.PBBlock.Head.Height {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (c *Chain) dbGetBlock(hash []byte) (*types.Block, error) {
+	blk, err := c.db.GetBlockByHash(hash)
+	if err != nil {
+		return nil, err
+	}
+	if blk == nil {
+		return nil, nil
+	}
+	height := c.rootHeight()
+	if height <= blk.PBBlock.Head.Height {
+		return nil, nil
+	}
+	return blk, nil
+}
+
+func (c *Chain) cacheRootParent() error {
+	if c.rootHeight() == 0 {
+		return nil
+	}
+	parentHash := c.rootParentHash()
+	n := c.memoryGetBlock(parentHash)
+	if n != nil {
+		return nil
+	}
+
+	blk, err := c.db.GetBlockByHash(parentHash)
+	if err != nil {
+		return nil
+	}
+	err = blk.Verify()
+	if err != nil {
+		return err
+	}
+	hash, err := blk.Hash()
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(hash, parentHash) {
+		return
+	}
+	if c.rootHeight() != blk.PBBlock.Head.Height {
+		return
+	}
+	node := &BlockTreeNode{
+		Block:      blk,
+		hash:       hash,
+		Parent:     nil,
+		Children:   make(map[*BlockTreeNode]bool),
+		ChainState: nil,
+		isLinked:   true,
+		isMain:     true,
+	}
+	if c.root != nil {
+		node.Children[c.root] = true
+	}
+	c.setRoot(node)
+	return nil
 }

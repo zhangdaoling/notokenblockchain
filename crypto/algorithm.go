@@ -13,38 +13,38 @@ var (
 )
 
 type AlgorithmI interface {
-	GeneratePrivateKey() (error, []byte)
+	GeneratePrivateKey() ([]byte, error)
 	CheckPrivateKey(privateKey []byte) error
-	GeneratePublicKey(privateKey []byte) (error, []byte)
-	Sign(message []byte, privateKey []byte) (error, []byte)
+	GeneratePublicKey(privateKey []byte) ([]byte, error)
+	Sign(message []byte, privateKey []byte) ([]byte, error)
 	Verify(message []byte, publicKey []byte, sig []byte) bool
 }
 
 var _ AlgorithmI = &curver.Ed25519{}
 var _ AlgorithmI = Ed25519
 
-type Algorithm uint8
+type Algorithm int32
 
 const (
 	_ Algorithm = iota
 	Ed25519
 )
 
-func NewAlgorithm(name string) (error, Algorithm) {
+func NewAlgorithm(name string) (Algorithm, error) {
 	switch name {
 	case "ed25519":
-		return nil, Ed25519
+		return Ed25519, nil
 	default:
-		return ErrNotSupportAlgorithm, 0
+		return 0, ErrNotSupportAlgorithm
 	}
 }
 
-func (a Algorithm) getBackend() (error, AlgorithmI) {
+func (a Algorithm) getBackend() (AlgorithmI, error) {
 	switch a {
 	case Ed25519:
-		return nil, &curver.Ed25519{}
+		return &curver.Ed25519{}, nil
 	default:
-		return ErrNotSupportAlgorithm, &curver.Ed25519{}
+		return &curver.Ed25519{}, ErrNotSupportAlgorithm
 	}
 }
 
@@ -57,16 +57,16 @@ func (a Algorithm) String() string {
 	}
 }
 
-func (a Algorithm) GeneratePrivateKey() (error, []byte) {
-	err, i := a.getBackend()
+func (a Algorithm) GeneratePrivateKey() ([]byte, error) {
+	i, err := a.getBackend()
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	return i.GeneratePrivateKey()
 }
 
 func (a Algorithm) CheckPrivateKey(privateKey []byte) error {
-	err, i := a.getBackend()
+	i, err := a.getBackend()
 	if err != nil {
 		return err
 	}
@@ -74,24 +74,24 @@ func (a Algorithm) CheckPrivateKey(privateKey []byte) error {
 }
 
 // GetPubkey will get the public key of the secret key
-func (a Algorithm) GeneratePublicKey(privateKey []byte) (error, []byte) {
-	err, i := a.getBackend()
+func (a Algorithm) GeneratePublicKey(privateKey []byte) ([]byte, error) {
+	i, err := a.getBackend()
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	return i.GeneratePublicKey(privateKey)
 }
 
-func (a Algorithm) Sign(message []byte, privateKey []byte) (error, []byte) {
-	err, i := a.getBackend()
+func (a Algorithm) Sign(message []byte, privateKey []byte) ([]byte, error) {
+	i, err := a.getBackend()
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	return i.Sign(message, privateKey)
 }
 
 func (a Algorithm) Verify(message []byte, publicKey []byte, sig []byte) (ret bool) {
-	err, i := a.getBackend()
+	i, err := a.getBackend()
 	if err != nil {
 		return false
 	}

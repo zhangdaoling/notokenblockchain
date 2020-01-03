@@ -5,5 +5,4 @@ package pb;
 message Signature {
     int32 algorithm = 1;
     bytes sig = 2;
-    bytes pubKey = 3;
 }

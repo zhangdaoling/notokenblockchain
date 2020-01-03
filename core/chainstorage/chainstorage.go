@@ -12,7 +12,8 @@ import (
 )
 
 var (
-	ErrDBNotFoundMessage = errors.New("db not found message")
+	ErrDBBLockNotExist = errors.New("db not found block")
+	ErrDBMessageNotExist = errors.New("db not found message")
 )
 
 type ChainStorage struct {
@@ -22,8 +23,6 @@ type ChainStorage struct {
 	weight       int64
 	messageTotal int64
 }
-
-
 
 //todo, more state
 var (
@@ -143,6 +142,9 @@ func (c *ChainStorage) GetBlockByHash(hash []byte) (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(blockByte) == 0 {
+		return nil, nil
+	}
 	blk := &types.Block{}
 	err = blk.DBDecode(blockByte)
 	if err != nil {
@@ -161,33 +163,15 @@ func (c *ChainStorage) GetBlockByHash(hash []byte) (*types.Block, error) {
 	return blk, nil
 }
 
-func (c *ChainStorage) GetBlockByNumber(number int64) (*types.Block, error) {
-	hash, err := c.GetHashByHeight(number)
-	if err != nil {
-		return nil, err
-	}
-	return c.GetBlockByHash(hash)
-}
-
-func (c *ChainStorage) GetHashByHeight(number int64) ([]byte, error) {
+func (c *ChainStorage) GetBlockByHeight(number int64) (*types.Block, error) {
 	hash, err := c.db.Get(append(blockHashPrefix, common.Int64ToBytes(number)...))
-	if err != nil || len(hash) == 0 {
+	if err != nil {
 		return nil, errors.New("fail to get hash by number")
 	}
-	return hash, nil
-}
-
-func (c *ChainStorage) GetHeightByHash(hash []byte) (int64, error) {
-	blockByte, err := c.getBlockByteByHash(hash)
-	if err != nil {
-		return 0, err
+	if len(hash) == 0 {
+		return nil, nil
 	}
-	blk := &types.Block{}
-	err = blk.DBDecode(blockByte)
-	if err != nil {
-		return 0, err
-	}
-	return blk.PBBlock.Head.Height, nil
+	return c.GetBlockByHash(hash)
 }
 
 func (c *ChainStorage) HasMessage(hash []byte) (bool, error) {
@@ -200,13 +184,18 @@ func (c *ChainStorage) GetMessage(hash []byte) (*types.Message, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to Get the msg: %v", err)
 	}
+	if len(msgIndex) == 0 {
+		return nil, nil
+	}
+
 	msgData, err := c.db.Get(append(messageHashPrefix, msgIndex...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to Get the msg: %v", err)
 	}
 	if len(msgData) == 0 {
-		return nil, fmt.Errorf("failed to Get the msg: not found")
+		return nil, nil
 	}
+
 	err = msg.DBDecode(msgData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to Decode the msg: %v", err)
@@ -215,7 +204,7 @@ func (c *ChainStorage) GetMessage(hash []byte) (*types.Message, error) {
 }
 
 //todo
-func (c *ChainStorage) GetDifficulty(height int64) *types.ChainState {
+func (c *ChainStorage) GetState(height int64) *types.ChainState {
 	return &types.ChainState{}
 }
 
@@ -254,7 +243,7 @@ func (c *ChainStorage) addBlock(blk *types.Block, db *kv.Storage) error {
 
 func (c *ChainStorage) getBlockByteByHash(hash []byte) ([]byte, error) {
 	blockByte, err := c.db.Get(append(blockHashPrefix, hash...))
-	if err != nil || len(blockByte) == 0 {
+	if err != nil {
 		return nil, errors.New("fail to get block byte by hash")
 	}
 	return blockByte, nil
@@ -275,7 +264,7 @@ func (c *ChainStorage) setMessageTotal(i int64) {
 // CheckLength is check length of block in database
 func (c *ChainStorage) CheckLength() {
 	for i := c.Length(); i > 0; i-- {
-		_, err := c.GetBlockByNumber(i - 1)
+		_, err := c.GetBlockByHeight(i - 1)
 		if err != nil {
 			fmt.Println("fail to get the block")
 		} else {
