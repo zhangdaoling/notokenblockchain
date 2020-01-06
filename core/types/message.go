@@ -2,19 +2,19 @@ package types
 
 import (
 	"bytes"
-	"fmt"
 	"errors"
+	"fmt"
 
-	"github.com/zhangdaoling/notokenblockchain/crypto"
 	"github.com/zhangdaoling/notokenblockchain/common"
 	"github.com/zhangdaoling/notokenblockchain/core/consensus"
+	"github.com/zhangdaoling/notokenblockchain/crypto"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/zhangdaoling/notokenblockchain/pb"
 )
 
-var(
-ErrMessagePublicKeyWrong = errors.New("block public key not right")
+var (
+	ErrMessagePublicKeyWrong = errors.New("block public key not right")
 )
 
 type Message struct {
@@ -79,10 +79,10 @@ func (m *Message) Hash() ([]byte, error) {
 func (m *Message) Sign(privateKey []byte) error {
 	alg := crypto.Ed25519
 	publicKey, err := alg.GeneratePublicKey(privateKey)
-	if err !=nil{
+	if err != nil {
 		return err
 	}
-	if !bytes.Equal(m.PBMessage.UnsignMessage.PublicKey, publicKey){
+	if !bytes.Equal(m.PBMessage.UnsignMessage.PublicKey, publicKey) {
 		return ErrMessagePublicKeyWrong
 
 	}
@@ -92,7 +92,7 @@ func (m *Message) Sign(privateKey []byte) error {
 		return err
 	}
 	sig, err := alg.Sign(hash, privateKey)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	m.PBMessage.Signature.Algorithm = int32(alg)
@@ -107,8 +107,8 @@ func (m *Message) Verify() error {
 		return err
 	}
 	m.hash = common.Sha3(baseBytes)
-	alg :=crypto.Algorithm(m.PBMessage.Signature.Algorithm)
-	if !alg.Verify(m.hash, m.PBMessage.UnsignMessage.PublicKey, m.PBMessage.Signature.Sig){
+	alg := crypto.Algorithm(m.PBMessage.Signature.Algorithm)
+	if !alg.Verify(m.hash, m.PBMessage.UnsignMessage.PublicKey, m.PBMessage.Signature.Sig) {
 		return ErrBlockSignWrong
 	}
 	return nil

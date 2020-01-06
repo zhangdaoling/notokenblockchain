@@ -1,22 +1,21 @@
 package chainstorage
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/zhangdaoling/notokenblockchain/core/consensus"
-	"strconv"
 	"sync"
 
 	"github.com/zhangdaoling/notokenblockchain/common"
+	"github.com/zhangdaoling/notokenblockchain/core/consensus"
 	"github.com/zhangdaoling/notokenblockchain/core/types"
 	"github.com/zhangdaoling/notokenblockchain/db/kv"
 	"github.com/zhangdaoling/notokenblockchain/pb"
 )
 
 var (
-	ErrDBBLockNotExist   = errors.New("db not found block")
-	ErrDBMessageNotExist = errors.New("db not found message")
+	ErrDBBLockNotExist      = errors.New("db not found block")
+	ErrDBMessageNotExist    = errors.New("db not found message")
+	ErrDBHeightDiffNotExist = errors.New("db not found difficulty height")
 )
 
 type ChainStorage struct {
@@ -58,6 +57,18 @@ func NewBlockChain(path string) (*ChainStorage, error) {
 			return nil, err
 		}
 	} else {
+		difficultyState := &types.DiffiucltyState{
+			Height:     consensus.GeneisBlock.Height(),
+			Time:       consensus.GeneisBlock.Time(),
+			Weight:     0,
+			Difficulty: 1,
+		}
+		difficultyByte := difficultyState.DBBytes()
+		err = levelDB.Put(append(difficultyStatePrefix, common.Int64ToBytes(0)...), difficultyByte)
+		if err != nil {
+			return nil, err
+		}
+
 		stateByte := ptr.DBBytes()
 		err := levelDB.Put(chainStatePrefix, stateByte)
 		if err != nil {
@@ -77,6 +88,29 @@ func NewBlockChain(path string) (*ChainStorage, error) {
 
 func (c *ChainStorage) Close() {
 	c.db.Close()
+}
+
+func (c *ChainStorage) PopBlock() (*types.Block, error) {
+	c.rw.RLock()
+	defer c.rw.RUnlock()
+
+	err := c.db.Begin()
+	if err != nil {
+		return nil, errors.New("fail to begin batch")
+	}
+
+	blk, state, err := c.popBlock()
+	if err != nil {
+		c.db.RollBack()
+		return nil, err
+	}
+	err = c.db.Commit()
+	if err != nil {
+		c.db.RollBack()
+		return nil, err
+	}
+	c.chainState = state
+	return blk, nil
 }
 
 func (c *ChainStorage) AddBlock(blk *types.Block) error {
@@ -125,15 +159,16 @@ func (c *ChainStorage) GetBlockByHash(hash []byte) (*types.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	if blk.PBBlock.MessageHashes != nil {
-		blk.PBBlock.Messages = make([]*pb.Message, len(blk.PBBlock.MessageHashes))
-		for _, hash := range blk.PBBlock.MessageHashes {
+	if blk.MessageHashes() != nil {
+		msgs := make([]*pb.Message, len(blk.MessageHashes()))
+		for _, hash := range blk.MessageHashes() {
 			msg, err := c.GetMessage(hash)
 			if err != nil {
 				return nil, fmt.Errorf("miss the msg, msg hash: %s", hash)
 			}
-			blk.PBBlock.Messages = append(blk.PBBlock.Messages, msg.PBMessage)
+			msgs = append(msgs, msg.PBMessage)
 		}
+		blk.SetMessages(msgs)
 	}
 	return blk, nil
 }
@@ -192,11 +227,60 @@ func (c *ChainStorage) getDifficulty(height int64) (*types.DiffiucltyState, erro
 	if err != nil {
 		return nil, err
 	}
+	if len(stateByte) == 0 {
+		return nil, nil
+	}
 	err = state.DBDecode(stateByte)
 	if err != nil {
 		return nil, err
 	}
 	return state, nil
+}
+
+func (c *ChainStorage) popBlock() (*types.Block, *types.ChainState, error) {
+	height := c.chainState.Length - 1
+	blk, err := c.GetBlockByHeight(height)
+	if err != nil {
+		return nil, nil, err
+	}
+	if blk == nil {
+		return nil, nil, nil
+	}
+
+	if blk.Height()%consensus.Consensus.DifficultyInterval == 0 {
+		err = c.db.Delete(append(difficultyStatePrefix, common.Int64ToBytes(blk.Height())...))
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	//delete block
+	hash, err := blk.Hash()
+	if err != nil {
+		return nil, nil, err
+	}
+	c.db.Delete(append(blockHeightPrefix, common.Int64ToBytes(blk.Height())...))
+	c.db.Delete(append(blockHashPrefix, hash...))
+	for _, m := range blk.Messages() {
+		msg := types.ToMessage(m)
+		msgHash, err := msg.Hash()
+		if err != nil {
+			return nil, nil, err
+		}
+		c.db.Delete(append(messageHashPrefix, msgHash...))
+		c.db.Delete(append(messageIndexPrefix, append(hash, msgHash...)...))
+	}
+
+	state := &types.ChainState{
+		Length:       c.chainState.Length - 1,
+		TotalWeight:  c.chainState.TotalMessage - blk.Weight(),
+		TotalMessage: c.chainState.TotalMessage - int64(len(blk.Messages())),
+	}
+	stateByte := state.DBBytes()
+	err = c.db.Put(chainStatePrefix, stateByte)
+	if err != nil {
+		return nil, nil, err
+	}
+	return blk, state, nil
 }
 
 func (c *ChainStorage) addBlock(blk *types.Block, db *kv.Storage) (state *types.ChainState, err error) {
@@ -208,10 +292,10 @@ func (c *ChainStorage) addBlock(blk *types.Block, db *kv.Storage) (state *types.
 	if err != nil {
 		return nil, err
 	}
-	number := blk.PBBlock.Head.Height
+	number := blk.Height()
 	c.db.Put(append(blockHeightPrefix, common.Int64ToBytes(number)...), hash)
 	c.db.Put(append(blockHashPrefix, hash...), blockByte)
-	for _, m := range blk.PBBlock.Messages {
+	for _, m := range blk.Messages() {
 		msg := types.ToMessage(m)
 		msgHash, err := msg.Hash()
 		if err != nil {
@@ -224,19 +308,38 @@ func (c *ChainStorage) addBlock(blk *types.Block, db *kv.Storage) (state *types.
 		c.db.Put(append(messageHashPrefix, msgHash...), append(hash, msgHash...))
 		c.db.Put(append(messageIndexPrefix, append(hash, msgHash...)...), msgBytes)
 	}
-	if blk.PBBlock.Head.Height%consensus.Consensus.DifficultyInterval == 0 {
-		lastDifficultyState, err := c.getDifficulty(blk.PBBlock.Head.Height)
-		if err != nil{
+	//diffucult state
+	if blk.Height()%consensus.Consensus.DifficultyInterval == 0 {
+		lastState, err := c.getDifficulty(blk.Height())
+		if err != nil {
 			return nil, err
 		}
-		currentDifficultyState
-
-
+		if lastState == nil {
+			return nil, ErrDBHeightDiffNotExist
+		}
+		difficulty, bool, err := consensus.NewDifficut(lastState.Height, lastState.Time, lastState.Weight, lastState.Difficulty, blk.Height(), blk.Time(), blk.Weight())
+		if err != nil {
+			return nil, err
+		}
+		if bool {
+			difficultyState := types.DiffiucltyState{
+				Height:     blk.Height(),
+				Time:       blk.Time(),
+				Weight:     c.chainState.TotalWeight + blk.Weight(),
+				Difficulty: difficulty,
+			}
+			difficultyByte := difficultyState.DBBytes()
+			err = c.db.Put(append(difficultyStatePrefix, common.Int64ToBytes(blk.Height())...), difficultyByte)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
+	//chain state
 	state = &types.ChainState{
 		Length:       c.chainState.Length + 1,
-		TotalWeight:  c.chainState.TotalMessage + blk.PBBlock.Head.Difficulty,
-		TotalMessage: c.chainState.TotalMessage + int64(len(blk.PBBlock.Messages)),
+		TotalWeight:  c.chainState.TotalMessage + blk.Weight(),
+		TotalMessage: c.chainState.TotalMessage + int64(len(blk.Messages())),
 	}
 	stateByte := state.DBBytes()
 	err = c.db.Put(chainStatePrefix, stateByte)

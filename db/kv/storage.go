@@ -24,7 +24,7 @@ type StorageBackend interface {
 	//NewIteratorByPrefix(prefix []byte) interface{}
 }
 
-var _  StorageBackend = &leveldb.DB{}
+var _ StorageBackend = &leveldb.DB{}
 
 type Storage struct {
 	StorageBackend

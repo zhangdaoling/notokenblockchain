@@ -14,7 +14,7 @@ type BlockTreeNode struct {
 }
 
 func (n *BlockTreeNode) Height() int64 {
-	return n.Block.PBBlock.Head.Height
+	return n.Block.Height()
 }
 
 func (n *BlockTreeNode) Hash() []byte {
@@ -22,5 +22,5 @@ func (n *BlockTreeNode) Hash() []byte {
 }
 
 func (n *BlockTreeNode) ParentHash() []byte {
-	return n.Block.PBBlock.Head.ParentHash
+	return n.Block.ParentHash()
 }

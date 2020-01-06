@@ -33,24 +33,28 @@ func (c *ChainState) DBDecode(b []byte) error {
 }
 
 type DiffiucltyState struct {
-	Time   int64
-	Weight int64
+	Height     int64
+	Time       int64
+	Weight     int64
 	Difficulty int64
 }
 
 func (d *DiffiucltyState) DBBytes() []byte {
-	b := make([]byte, 16)
-	binary.BigEndian.PutUint64(b[0:8], uint64(d.Time))
-	binary.BigEndian.PutUint64(b[8:16], uint64(d.Weight))
+	b := make([]byte, 32)
+	binary.BigEndian.PutUint64(b[0:8], uint64(d.Height))
+	binary.BigEndian.PutUint64(b[8:16], uint64(d.Time))
+	binary.BigEndian.PutUint64(b[16:24], uint64(d.Weight))
+	binary.BigEndian.PutUint64(b[24:0], uint64(d.Difficulty))
 	return b
 }
 
 func (d *DiffiucltyState) DBDecode(b []byte) error {
-	if len(b) != 16 {
+	if len(b) != 32 {
 		return fmt.Errorf("sdfsd")
 	}
-	d.Time = int64(binary.BigEndian.Uint16(b[0:8]))
-	d.Weight = int64(binary.BigEndian.Uint16(b[8:16]))
-	d.Difficulty = int64(binary.BigEndian.Uint16(b[16:]))
+	d.Height = int64(binary.BigEndian.Uint16(b[0:8]))
+	d.Time = int64(binary.BigEndian.Uint16(b[8:16]))
+	d.Weight = int64(binary.BigEndian.Uint16(b[16:24]))
+	d.Difficulty = int64(binary.BigEndian.Uint16(b[24:]))
 	return nil
 }

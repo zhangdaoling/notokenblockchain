@@ -53,7 +53,7 @@ func NewChainManager(db *chainstorage.ChainStorage, config *ChainConfig) (*Chain
 		hashToMessage: make(map[string]*types.Message),
 	}
 
-	blk, err := db.GetBlockByHeight(db.Length())
+	blk, err := db.GetBlockByHeight(db.Get)
 	if blk == nil {
 		return nil, chainstorage.ErrDBBLockNotExist
 	}
@@ -123,7 +123,7 @@ func (c *Chain) AddBlock(blk *types.Block) error {
 	if err != nil {
 		return err
 	}
-	parentHash := blk.PBBlock.Head.ParentHash
+	parentHash := blk.ParentHash()
 
 	//cache more blk from db if parent is in db
 	exist, err := c.dbHasBlock(parentHash)
@@ -136,7 +136,7 @@ func (c *Chain) AddBlock(blk *types.Block) error {
 			return err
 		}
 		if parentBlk != nil {
-			if c.rootHeight()-parentBlk.PBBlock.Head.Height > c.config.MaxCacheBlockNumber {
+			if c.rootHeight()-parentBlk.Height() > c.config.MaxCacheBlockNumber {
 				//nothing to do
 				return nil
 			}
@@ -259,7 +259,7 @@ func (c *Chain) dbHasBlock(hash []byte) (bool, error) {
 	if blk == nil {
 		return false, nil
 	}
-	if height <= blk.PBBlock.Head.Height {
+	if height <= blk.Height() {
 		return false, nil
 	}
 	return true, nil
@@ -274,7 +274,7 @@ func (c *Chain) dbGetBlock(hash []byte) (*types.Block, error) {
 		return nil, nil
 	}
 	height := c.rootHeight()
-	if height <= blk.PBBlock.Head.Height {
+	if height <= blk.Height() {
 		return nil, nil
 	}
 	return blk, nil
@@ -305,7 +305,7 @@ func (c *Chain) cacheRootParent() error {
 	if bytes.Equal(hash, parentHash) {
 		return
 	}
-	if c.rootHeight() != blk.PBBlock.Head.Height {
+	if c.rootHeight() != blk.Height() {
 		return
 	}
 	node := &BlockTreeNode{
