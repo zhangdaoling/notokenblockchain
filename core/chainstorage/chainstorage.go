@@ -14,6 +14,7 @@ import (
 
 var (
 	ErrDBBLockNotExist      = errors.New("db not found block")
+	ErrDBBLockHeightWrong   = errors.New("add wrong block height")
 	ErrDBMessageNotExist    = errors.New("db not found message")
 	ErrDBHeightDiffNotExist = errors.New("db not found difficulty height")
 )
@@ -284,6 +285,9 @@ func (c *ChainStorage) popBlock() (*types.Block, *types.ChainState, error) {
 }
 
 func (c *ChainStorage) addBlock(blk *types.Block, db *kv.Storage) (state *types.ChainState, err error) {
+	if c.chainState.Length != blk.Height() {
+		return nil, ErrDBBLockHeightWrong
+	}
 	hash, err := blk.Hash()
 	if err != nil {
 		return nil, err

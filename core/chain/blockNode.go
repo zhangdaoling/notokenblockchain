@@ -3,14 +3,14 @@ package chain
 import "github.com/zhangdaoling/notokenblockchain/core/types"
 
 type BlockTreeNode struct {
-	Block        *types.Block
-	Parent       *BlockTreeNode
-	Children     map[*BlockTreeNode]bool
-	isLinked     bool
-	hash         []byte
-	difficult    int64
-	sumDifficult int64
-	ChainState   *types.ChainState
+	hash            []byte
+	Block           *types.Block
+	Parent          *BlockTreeNode
+	Children        map[*BlockTreeNode]bool
+	isLinked        bool
+	isMain          bool
+	ChainState      types.ChainState
+	DifficultyState types.DiffiucltyState
 }
 
 func (n *BlockTreeNode) Height() int64 {

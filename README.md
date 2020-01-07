@@ -19,7 +19,7 @@ childChain：子链
 # 计划
 1、实现upow共识chainNode，测试共识参数
 
-2、移植vm（暂定evm）实现workNode。实现token功能
+2、实现带token功能的workNode
 
 3、实现mainChain
 

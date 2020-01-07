@@ -28,7 +28,7 @@ type Chain struct {
 	//the root of the main tree. main tree include the main chain
 	root *BlockTreeNode
 	//the main chain leaf node
-	mainChainLeaf *BlockTreeNode
+	header *BlockTreeNode
 	//no children block
 	//leafDifficulty map[*BlockTreeNode]int64
 	//all block in memory, include unlinked
@@ -45,7 +45,7 @@ func NewChainManager(db *chainstorage.ChainStorage, config *ChainConfig) (*Chain
 		db:                 db,
 		parentToUnlinkNode: make(map[string]*BlockTreeNode),
 		root:               nil,
-		mainChainLeaf:      nil,
+		header:             nil,
 		//leafDifficulty: make(map[*BlockTreeNode]int64),
 		blockMaps:     make(map[string]*BlockTreeNode),
 		hashToblock:   make(map[string]*BlockTreeNode),
@@ -53,14 +53,18 @@ func NewChainManager(db *chainstorage.ChainStorage, config *ChainConfig) (*Chain
 		hashToMessage: make(map[string]*types.Message),
 	}
 
-	blk, err := db.GetBlockByHeight(db.Get)
-	if blk == nil {
-		return nil, chainstorage.ErrDBBLockNotExist
-	}
+	state := db.State()
+	difficultState, err := db.GetDifficulty(state.Length - 1)
 	if err != nil {
 		return nil, err
 	}
-	state := db.GetState(db.Length())
+	blk, err := db.PopBlock()
+	if err != nil {
+		return nil, err
+	}
+	if blk == nil {
+		return nil, chainstorage.ErrDBBLockNotExist
+	}
 	err = blk.Verify()
 	if err != nil {
 		return nil, err
@@ -69,44 +73,43 @@ func NewChainManager(db *chainstorage.ChainStorage, config *ChainConfig) (*Chain
 	if err != nil {
 		return nil, err
 	}
-	parent := &BlockTreeNode{
-		Block:      blk,
-		hash:       hash,
-		Parent:     nil,
-		Children:   make(map[*BlockTreeNode]bool),
-		ChainState: state,
-		isLinked:   true,
+	node := &BlockTreeNode{
+		hash:            hash,
+		Block:           blk,
+		Parent:          nil,
+		Children:        make(map[*BlockTreeNode]bool),
+		isLinked:        true,
+		isMain:          true,
+		ChainState:      state,
+		DifficultyState: *difficultState,
 	}
-	c.setRoot(parent)
-	c.setMainLeaf(parent)
-
-	for i := int64(0); i < config.MinCacheBlockNumber-1; i++ {
-		if c.rootHeight() == 0 {
-			break
-		}
-		err := c.cacheRootParent()
-		if err != nil {
-			return nil, err
-		}
-	}
+	c.setRoot(node)
+	c.setHeader(node)
+	c.memorySetBlock(node)
 	return c, nil
 }
 
 func (c *Chain) setRoot(node *BlockTreeNode) {
-	c.blockMaps[string(node.Hash())] = node
-	return
+	c.root = node
 }
 
-func (c *Chain) setMainLeaf(node *BlockTreeNode) {
-	c.mainChainLeaf = node
+func (c *Chain) setHeader(node *BlockTreeNode) {
+	c.header = node
 }
 
 func (c *Chain) AddBlock(blk *types.Block) error {
+	err := blk.Verify()
+	if err != nil {
+		return err
+	}
+
 	hash, err := blk.Hash()
 	if err != nil {
 		return err
 	}
-	//the same blk, return
+	parentHash := blk.ParentHash()
+
+	//check the same blk
 	n, err := c.GetBlockByHash(hash)
 	if err != nil {
 		return err
@@ -118,12 +121,6 @@ func (c *Chain) AddBlock(blk *types.Block) error {
 	if ok {
 		return nil
 	}
-
-	err = blk.Verify()
-	if err != nil {
-		return err
-	}
-	parentHash := blk.ParentHash()
 
 	//cache more blk from db if parent is in db
 	exist, err := c.dbHasBlock(parentHash)
@@ -173,7 +170,9 @@ func (c *Chain) AddBlock(blk *types.Block) error {
 		}
 	}
 	unlinkNode.Children[node] = true
-	c.blockMaps[string(hash)] = node
+	c.memorySetBlock(node)
+
+	//get all leaf
 
 	parentNode, ok := c.blockMaps[string(node.ParentHash())]
 	if !ok {
@@ -185,16 +184,14 @@ func (c *Chain) AddBlock(blk *types.Block) error {
 	return nil
 }
 
-func(c *Chain) link(node *BlockTreeNode){
+func (c *Chain) link(node *BlockTreeNode) {
 	if len(node.Children) == 0 {
 		return
 	}
-	for child, _ := range node.Children{
+	for child, _ := range node.Children {
 		//todo verify chainstate
 		child.ChainState = node.ChainState
-		if {
 
-		}
 		child.isLinked = true
 		c.link(child)
 	}
@@ -206,6 +203,7 @@ func (c *Chain) memoryGetBlock(hash []byte) *BlockTreeNode {
 }
 
 func (c *Chain) memorySetBlock(node *BlockTreeNode) {
+	c.blockMaps[string(node.hash)] = node
 }
 
 func (c *Chain) HasBlock(hash []byte) (bool, error) {
