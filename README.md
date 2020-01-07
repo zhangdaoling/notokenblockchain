@@ -1,11 +1,11 @@
 # no token blockchain
-改区块链涉及分为两部分或者说分为两种节点。
+区块链分为两部分或者说分为两种节点。
 
 
 # key words
-chainNode：负责共识和产块，没有经济模型
+chainNode：负责共识和产块，没有经济模型，公益性质
 
-WorkNode：负责业务功能。例如使用evm实现token功能
+WorkNode：负责业务功能。例如使用evm实现token功能，可以实心矿工收益，回馈chainNode
 
 block：区块
 
@@ -14,6 +14,8 @@ message：区块中的信息
 mainChain：主链，管理子链
 
 childChain：子链
+
+upow：交易满足难度运算，矿工搜集足够难度就可以出块，矿工成本很低，不需要经济模型刺激。
 
 
 # 计划
