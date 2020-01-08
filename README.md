@@ -37,3 +37,7 @@ upow：交易满足难度运算，矿工搜集足够难度就可以出块，矿�
 3、crypto：完成
 
 4、core：
+
+#support
+btc address：394nLFQo2XVf9ruET6JYRw4inoPF2YUaox
+eth address：0x4914eAb996a15c8b8B0896F178357838cb0aD60a
