@@ -23,7 +23,7 @@ upow：交易满足难度运算，矿工搜集足够难度就可以出块，矿�
 
 2、实现带token功能的workNode
 
-3、实现mainChain
+3、设计mainChain功能，需要采用中心化挖矿
 
 
 # to do
